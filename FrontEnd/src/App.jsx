@@ -1,52 +1,75 @@
 import "./App.css";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { connectWs } from "./ws";
 
 function App() {
+  const socket = useRef(null);
   const [userName, setUserName] = useState("");
   const [showNamePopup, setShowNamePopup] = useState(true);
   const [inputName, setInputName] = useState("");
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
 
+  useEffect(() => {
+    socket.current = connectWs();
+
+    socket.current.on("connect", () => {
+      socket.current.on("roomNotice", (username) => {
+        console.log(`${username} joined the group!`);
+      });
+
+      socket.current.on("chatMessage",(msg)=>{
+        //push to existing message
+        setMessages((prev)=>{return [...prev,msg]});
+        console.log(messages);
+        
+        console.log(`message: ${msg}`);
+        
+      })
+    });
+  }, []);
 
   function formatTime(ts) {
-        const d = new Date(ts);
-        const hh = String(d.getHours()).padStart(2, '0');
-        const mm = String(d.getMinutes()).padStart(2, '0');
-        return `${hh}:${mm}`;
+    const d = new Date(ts);
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    return `${hh}:${mm}`;
+  }
+
+  function handleNameSubmit(e) {
+    e.preventDefault();
+    const trimmed = inputName.trim();
+    if (!trimmed) return;
+
+    socket.current.emit("joinRoom", trimmed);
+    setUserName(trimmed);
+
+    setShowNamePopup(false);
+  }
+
+  function sendMessage() {
+    const t = text.trim();
+    if (!t) return;
+
+    const msg = {
+      id: Date.now(),
+      sender: userName,
+      text: t,
+      ts: Date.now(),
+    };
+    setMessages((m) => [...m, msg]);
+    //emit
+    socket.current.emit('chatMessage',msg);
+
+    setText("");
+  }
+
+  function handleKeyDown(e) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
     }
-
-    function handleNameSubmit(e) {
-        e.preventDefault();
-        const trimmed = inputName.trim();
-        if (!trimmed) return;
-
-
-        setUserName(trimmed);
-        setShowNamePopup(false);
-    }
-
-    function sendMessage() {
-        const t = text.trim();
-        if (!t) return;
-
-        const msg = {
-            id: Date.now(),
-            sender: userName,
-            text: t,
-            ts: Date.now(),
-        };
-        setMessages((m) => [...m, msg]);
-
-        setText('');
-    }
-
-    function handleKeyDown(e) {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            sendMessage();
-        }
-    }
+  }
 
   return (
     <>
@@ -89,7 +112,6 @@ function App() {
                 <div className="text-sm font-medium text-[#303030]">
                   Realtime group chat
                 </div>
-
               </div>
               <div className="text-sm text-gray-500">
                 Signed in as{" "}
@@ -100,7 +122,7 @@ function App() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-zinc-100 flex flex-col">
-              {messages.map((m) => {
+              {messages?.map((m) => {
                 const mine = m.sender === userName;
                 return (
                   <div
