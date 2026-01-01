@@ -1,13 +1,20 @@
 import { createServer } from "node:http";
 import { Server } from "socket.io";
-
+import cors from 'cors';
 import express from "express";
+import { configDotenv } from "dotenv";
 
+configDotenv();
 const app = express();
 const server = createServer(app);
+
+app.use(cors({
+  origin: process.env.CLIENT_URL,
+  credentials: true,
+}));
 const io = new Server(server, {
   cors: {
-    origin: '*',
+    origin: process.env.CLIENT_URL,
     methods: ["GET", "POST"],
   },
 });
@@ -39,8 +46,18 @@ io.on("connection", (socket) => {
     
     socket.to(ROOM).emit("chatMessage",msg);
   });
+
+  socket.on('typing',(userName)=>{
+    socket.to(ROOM).emit("typing",userName);
+
+  })
+
+  socket.on('stopTyping',(userName)=>{
+    socket.to(ROOM).emit('stopTyping',userName);
+  })
 });
 
-server.listen(3000, () => {
-  console.log("server running at http://localhost:3000");
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`server running at ${PORT} Port`);
 });

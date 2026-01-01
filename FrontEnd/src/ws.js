@@ -1,6 +1,6 @@
 import { io } from "socket.io-client";
 
 export function connectWs(){
-    return io('http://localhost:3000/');
+    return io(import.meta.env.VITE_SOCKET_URL);
 
 }

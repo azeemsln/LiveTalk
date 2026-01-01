@@ -3,12 +3,14 @@ import { useEffect, useRef, useState } from "react";
 import { connectWs } from "./ws";
 
 function App() {
+  const timer = useRef(null);
   const socket = useRef(null);
   const [userName, setUserName] = useState("");
   const [showNamePopup, setShowNamePopup] = useState(true);
   const [inputName, setInputName] = useState("");
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
+  const [typers,setTypers]=useState([]);
 
   useEffect(() => {
     socket.current = connectWs();
@@ -21,13 +23,50 @@ function App() {
       socket.current.on("chatMessage",(msg)=>{
         //push to existing message
         setMessages((prev)=>{return [...prev,msg]});
-        console.log(messages);
+        // console.log(messages);
         
         console.log(`message: ${msg}`);
+
         
       })
+      socket.current.on('typing',(userName)=>{
+        setTypers((prev)=> {
+          const isExist=prev.find((typer)=> typer===userName);
+          if(!isExist){
+           return [...prev,userName]
+          }
+            return prev;
+        });
+      })
+      socket.current.on('stopTyping',(userName)=>{
+        setTypers((prev)=> {
+          return prev.filter((typer)=>typer!=userName);
+        });
+      })
     });
+
+    return ()=>{
+      socket.current.off('roomNotice')
+      socket.current.off('chatMessage')
+      socket.current.off('typing')
+      socket.current.off('stopTyping')
+    }
   }, []);
+
+  useEffect(()=>{
+    if(text){
+      socket.current.emit('typing',userName); 
+
+      clearTimeout(timer.current);
+    }
+    timer.current=setTimeout(()=>{
+      socket.current.emit('stopTyping',userName);
+
+    },1000)
+    return ()=>{
+      clearTimeout(timer.current);
+    };
+  },[text,userName])
 
   function formatTime(ts) {
     const d = new Date(ts);
@@ -112,6 +151,7 @@ function App() {
                 <div className="text-sm font-medium text-[#303030]">
                   Realtime group chat
                 </div>
+                {typers?.length?<div className="text-xs text-gray-500 ">{typers.join(', ')} is typing...</div>:""}
               </div>
               <div className="text-sm text-gray-500">
                 Signed in as{" "}
